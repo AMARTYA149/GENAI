@@ -1,133 +1,136 @@
-import 'dotenv/config';
-import { tavily } from '@tavily/core';
+import "dotenv/config";
+import { tavily } from "@tavily/core";
 import OpenAI from "openai";
 
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
 const apiKey = process.env.GROQ_API_KEY;
 
 const groq = new OpenAI({
-    apiKey: apiKey,
-    baseURL: "https://api.groq.com/openai/v1",
+  apiKey: apiKey,
+  baseURL: "https://api.groq.com/openai/v1",
 });
 
 async function main() {
-    const messages = [
-        {
-            //Setting persona of the llm agent
-            role: 'system',
-            content: `You are Jarvis, a smart personal assistant. Be always chaddi buddy and talk in hinglish. Respond in JSON format. You have access to following tools:
-                1. webSearch({query}: {query: string}) // Search the latest information and realtime data on the internet`,
-        },
-        {
-            role: "user",
-            content: "When was iphone 16 launched?",
-        },
-    ]
+  const messages = [
+    {
+      //Setting persona of the llm agent
+      role: "system",
+      content: `You are Jarvis, a smart personal assistant. You MUST ALWAYS respond in Hinglish (mix of Hindi and English). Be a chaddi buddy - casual, friendly, desi tone. Respond in JSON format. Only use tools when the user asks something that requires searching for real-time or factual information.`,
+    },
+    {
+      role: "user",
+      content: "What is the weather in Manali?",
+    },
+  ];
+
+  while (true) {
     const completions = await groq.chat.completions.create({
-        temperature: 0,
-        // frequency_penalty: 1,
-        // response_format: { type: 'json_object' },
-        model: 'llama-3.3-70b-versatile',
-        messages: messages,
-        tools: [
-            // Sample request body with tool definitions and messages
-            {
-                "type": "function",
-                "function": {
-                    "name": "webSearch",
-                    "description": "Search the latest information and realtime data on the internet",
-                    "parameters": {
-                        // JSON Schema object
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "The search query to perform search on"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
-            }
-
-        ],
-        tool_choice: 'auto'
+      temperature: 0,
+      // frequency_penalty: 1,
+      // response_format: { type: 'json_object' },
+      model: "llama-3.3-70b-versatile",
+      messages: messages,
+      tools: [
+        // Sample request body with tool definitions and messages
+        {
+          type: "function",
+          function: {
+            name: "webSearch",
+            description:
+              "Search the latest information and realtime data on the internet",
+            parameters: {
+              // JSON Schema object
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "The search query to perform search on",
+                },
+              },
+              required: ["query"],
+            },
+          },
+        },
+      ],
+      tool_choice: "auto",
     });
-
 
     messages.push(completions.choices[0].message);
     // console.log(`Messages ${messages}`);
 
     const toolCalls = completions.choices[0].message.tool_calls;
     if (!toolCalls) {
-        console.log(`Assistant: ${completions.choices[0].content}`);
-        return;
+      console.log(`Assistant: ${JSON.stringify(completions.choices[0].message, null, 2)}`);
+      break;
     }
 
     for (const tool of toolCalls) {
-        console.log(`tool:`, tool);
-        const functionName = tool.function.name;
-        const functionParams = tool.function.arguments;
+    //   console.log(`tool:`, tool);
+      const functionName = tool.function.name;
+      const functionParams = tool.function.arguments;
 
-        if (functionName === 'webSearch') {
-            const toolResult = await webSearch(JSON.parse(functionParams));
-            // console.log(`ToolResult: `, toolResult);
+      if (functionName === "webSearch") {
+        const toolResult = await webSearch(JSON.parse(functionParams));
+        // console.log(`ToolResult: `, toolResult);
 
-            messages.push({
-                tool_call_id: tool.id,
-                role: 'tool',
-                name: functionName,
-                content: toolResult
-            });
-        }
+        messages.push({
+          tool_call_id: tool.id,
+          role: "tool",
+          name: functionName,
+          content: toolResult,
+        });
+      }
     }
 
-       const completions2 = await groq.chat.completions.create({
-        temperature: 0,
-        // frequency_penalty: 1,
-        // response_format: { type: 'json_object' },
-        model: 'llama-3.3-70b-versatile',
-        messages: messages,
-        tools: [
-            // Sample request body with tool definitions and messages
-            {
-                "type": "function",
-                "function": {
-                    "name": "webSearch",
-                    "description": "Search the latest information and realtime data on the internet",
-                    "parameters": {
-                        // JSON Schema object
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The search query to perform search on"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
-            }
+    //    const completions2 = await groq.chat.completions.create({
+    //     temperature: 0,
+    //     // frequency_penalty: 1,
+    //     // response_format: { type: 'json_object' },
+    //     model: 'llama-3.3-70b-versatile',
+    //     messages: messages,
+    //     tools: [
+    //         // Sample request body with tool definitions and messages
+    //         {
+    //             "type": "function",
+    //             "function": {
+    //                 "name": "webSearch",
+    //                 "description": "Search the latest information and realtime data on the internet",
+    //                 "parameters": {
+    //                     // JSON Schema object
+    //                     "type": "object",
+    //                     "properties": {
+    //                         "query": {
+    //                             "type": "string",
+    //                             "description": "The search query to perform search on"
+    //                         }
+    //                     },
+    //                     "required": ["query"]
+    //                 }
+    //             }
+    //         }
 
-        ],
-        tool_choice: 'auto'
-    });
+    //     ],
+    //     tool_choice: 'auto'
+    // });
 
-    console.log("Response:", JSON.stringify(completions2.choices[0].message, null, 2));
+    // console.log("Response:", JSON.stringify(completions2.choices[0].message, null, 2));
+  }
 }
 
 main();
 
 async function webSearch({ query }) {
-    // Here we will do tavily api call
+  // Here we will do tavily api call
 
-    console.log(`Calling web search...`);
+  console.log(`Calling web search...`);
 
-    const response = await tvly.search(query);
-    // console.log(`Response: `, response);
+  const response = await tvly.search(query);
+  // console.log(`Response: `, response);
 
-    const finalResult = response.results.map((result) => result.content).join('\n\n');
+  const finalResult = response.results
+    .map((result) => result.content)
+    .join("\n\n");
 
-    // console.log(`Final Result: ${finalResult}`)
-    return finalResult;
+  // console.log(`Final Result: ${finalResult}`)
+  return finalResult;
 }
