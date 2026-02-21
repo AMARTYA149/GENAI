@@ -23,7 +23,7 @@ async function main() {
             content: "When was iphone 16 launched?",
         },
     ]
-    const completion = await groq.chat.completions.create({
+    const completions = await groq.chat.completions.create({
         temperature: 0,
         // frequency_penalty: 1,
         // response_format: { type: 'json_object' },
@@ -55,11 +55,12 @@ async function main() {
     });
 
 
-    messages.push(completion.choices[0].message);
+    messages.push(completions.choices[0].message);
+    // console.log(`Messages ${messages}`);
 
-    const toolCalls = completion.choices[0].message.tool_calls;
+    const toolCalls = completions.choices[0].message.tool_calls;
     if (!toolCalls) {
-        console.log(`Assistant: ${completion.choices[0].content}`);
+        console.log(`Assistant: ${completions.choices[0].content}`);
         return;
     }
 
@@ -70,11 +71,49 @@ async function main() {
 
         if (functionName === 'webSearch') {
             const toolResult = await webSearch(JSON.parse(functionParams));
-            console.log(`ToolResult: `, toolResult);
+            // console.log(`ToolResult: `, toolResult);
+
+            messages.push({
+                tool_call_id: tool.id,
+                role: 'tool',
+                name: functionName,
+                content: toolResult
+            });
         }
     }
 
-    // console.log(JSON.stringify(completion.choices[0].message, null, 2));
+       const completions2 = await groq.chat.completions.create({
+        temperature: 0,
+        // frequency_penalty: 1,
+        // response_format: { type: 'json_object' },
+        model: 'llama-3.3-70b-versatile',
+        messages: messages,
+        tools: [
+            // Sample request body with tool definitions and messages
+            {
+                "type": "function",
+                "function": {
+                    "name": "webSearch",
+                    "description": "Search the latest information and realtime data on the internet",
+                    "parameters": {
+                        // JSON Schema object
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query to perform search on"
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }
+
+        ],
+        tool_choice: 'auto'
+    });
+
+    console.log("Response:", JSON.stringify(completions2.choices[0].message, null, 2));
 }
 
 main();
@@ -85,7 +124,7 @@ async function webSearch({ query }) {
     console.log(`Calling web search...`);
 
     const response = await tvly.search(query);
-    console.log(`Response: `, response);
+    // console.log(`Response: `, response);
 
     const finalResult = response.results.map((result) => result.content).join('\n\n');
 
